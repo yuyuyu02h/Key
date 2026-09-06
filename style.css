@@ -1,0 +1,330 @@
+/* ==========================================================================
+   Origami Keyboard — トークン
+   独自配列キーボードの試作機。土台は「本物のキーボードとして没入できること」
+   なので、装飾は最小限にし、キー・フリックUIの機能美だけを主役にしている。
+   ========================================================================== */
+:root{
+  --bg-stage: #0A0B0E;
+  --phone-bg: #15171D;
+  --panel-bg: #1B1E25;
+  --key-face: #24272F;
+  --key-face-pressed: #34394A;
+  --key-face-fn: #1A1C22;
+  --key-face-fn-pressed: #2A2D36;
+  --key-border: rgba(255,255,255,0.06);
+  --accent: #F4B740;
+  --accent-soft: rgba(244,183,64,0.18);
+  --accent-strong: #FFCB66;
+  --text-primary: #EDEEF2;
+  --text-secondary: #8A8D98;
+  --text-tertiary: #5B5E68;
+  --danger: #FF6B6B;
+  --radius-key: 10px;
+  --radius-panel: 18px;
+  --font: -apple-system, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+}
+
+*{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body{
+  margin:0; padding:0; height:100%;
+  background: var(--bg-stage);
+  font-family: var(--font);
+  color: var(--text-primary);
+  overscroll-behavior: none;
+}
+
+.stage{
+  min-height: 100vh;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:16px;
+  padding: 24px 12px 40px;
+}
+
+.stage__label{
+  display:flex; align-items:center; gap:8px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  letter-spacing: .01em;
+}
+.stage__dot{
+  width:6px; height:6px; border-radius:50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.stage__footnote{
+  max-width: 412px;
+  text-align:center;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height:1.6;
+  margin: 4px 8px 0;
+}
+
+/* ==========================================================================
+   端末フレーム
+   ========================================================================== */
+.phone{
+  position: relative;
+  width: min(412px, 94vw);
+  background: var(--phone-bg);
+  border-radius: 34px;
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 30px 60px rgba(0,0,0,0.55), 0 0 0 8px #0000;
+  overflow: hidden;
+  display:flex; flex-direction:column;
+  min-height: 640px;
+  user-select:none;
+}
+
+.notch-bar{
+  display:flex; justify-content:space-between; align-items:center;
+  padding: 10px 22px 4px;
+  font-size: 13px;
+  font-weight:600;
+  color: var(--text-primary);
+}
+.notch-bar__icons{ font-size:9px; letter-spacing:1px; color: var(--text-secondary); }
+
+.app-toolbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 6px 18px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.app-toolbar__title{ display:flex; align-items:center; gap:10px; }
+.app-toolbar__logo{
+  width:30px; height:30px; border-radius:9px;
+  background: linear-gradient(155deg, var(--accent-strong), var(--accent));
+  color:#211505; font-weight:800; font-size:14px;
+  display:flex; align-items:center; justify-content:center;
+}
+.app-toolbar__name{ font-size:14.5px; font-weight:600; }
+.app-toolbar__sub{ font-size:11.5px; color: var(--text-secondary); margin-top:1px; }
+
+.icon-btn{
+  width:32px; height:32px; border-radius:50%;
+  background: var(--key-face-fn);
+  border: 1px solid var(--key-border);
+  color: var(--text-secondary);
+  font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+}
+.icon-btn:active{ background: var(--key-face-fn-pressed); }
+
+/* ==========================================================================
+   テキスト表示エリア
+   ========================================================================== */
+.text-display-wrap{
+  position:relative;
+  margin: 12px 16px 8px;
+  min-height: 92px;
+  background: var(--panel-bg);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.05);
+  padding: 12px 14px;
+}
+.text-display{
+  font-size: 16px;
+  line-height:1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 68px;
+  outline:none;
+}
+.text-display__hint{
+  position:absolute; left:14px; top:12px;
+  font-size:15px; color: var(--text-tertiary);
+  pointer-events:none;
+}
+.text-display__hint.is-hidden{ display:none; }
+
+.text-cursor{
+  display:inline-block;
+  width:2px; height:1.05em;
+  background: var(--accent);
+  vertical-align: text-bottom;
+  margin: 0 -1px;
+  animation: blink 1s step-end infinite;
+  border-radius:1px;
+}
+@keyframes blink{ 50%{ opacity:0; } }
+
+/* ==========================================================================
+   よく使う文章チップ
+   ========================================================================== */
+.phrase-bar{
+  display:flex; gap:8px; overflow-x:auto;
+  padding: 0 16px 10px;
+  scrollbar-width:none;
+}
+.phrase-bar::-webkit-scrollbar{ display:none; }
+.phrase-chip{
+  flex: 0 0 auto;
+  padding: 7px 13px;
+  background: var(--key-face-fn);
+  border: 1px solid var(--key-border);
+  border-radius: 999px;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.phrase-chip:active{ background: var(--key-face-fn-pressed); }
+
+/* ==========================================================================
+   キーボード本体
+   ========================================================================== */
+.keyboard{
+  margin-top:auto;
+  background: #101216;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding: 8px 6px calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.keyboard__rows{ display:flex; flex-direction:column; gap:7px; }
+.kb-row{ display:flex; gap:6px; }
+
+.key{
+  position:relative;
+  flex:1;
+  height: 46px;
+  background: var(--key-face);
+  border: 1px solid var(--key-border);
+  border-radius: var(--radius-key);
+  color: var(--text-primary);
+  font-size: 17px;
+  font-family: inherit;
+  display:flex; align-items:center; justify-content:center;
+  touch-action:none;
+  cursor:pointer;
+  transition: background .06s ease, transform .06s ease;
+}
+.key .key__label{ pointer-events:none; }
+.key .key__sub{
+  position:absolute; bottom:3px; right:5px;
+  font-size:8.5px; color: var(--text-tertiary);
+  pointer-events:none;
+}
+.key.is-pressed{ background: var(--key-face-pressed); transform: scale(0.96); }
+
+.key--fn{ background: var(--key-face-fn); color: var(--text-secondary); font-size:13.5px; }
+.key--fn.is-pressed{ background: var(--key-face-fn-pressed); }
+.key--fn.is-active{ color: var(--accent); border-color: var(--accent-soft); }
+
+.key--delete{ flex:1.1; color: var(--danger); font-size:17px; }
+.key--space{ flex:3.2; font-size:13px; letter-spacing:.03em; color: var(--text-secondary); }
+.key--return{ flex:1.5; font-size:13px; color: var(--accent); }
+.key--globe{ flex:0.9; font-size:16px; }
+.key--num{ flex:0.9; font-size:13.5px; }
+.key--wide{ flex:1.4; }
+
+/* ==========================================================================
+   フリック方向プレビュー
+   ========================================================================== */
+.flick-bubble{
+  position:fixed;
+  width:150px; height:150px;
+  display:grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  pointer-events:none;
+  z-index: 60;
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.5));
+}
+.flick-bubble__cell{
+  display:flex; align-items:center; justify-content:center;
+  font-size:19px;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.flick-bubble__cell--center{ grid-column:2; grid-row:2; border-radius:10px; background:#20232B; color:var(--text-primary); font-weight:600; }
+.flick-bubble__cell--up{ grid-column:2; grid-row:1; border-radius:10px 10px 4px 4px; }
+.flick-bubble__cell--down{ grid-column:2; grid-row:3; border-radius:4px 4px 10px 10px; }
+.flick-bubble__cell--left{ grid-column:1; grid-row:2; border-radius:10px 4px 4px 10px; }
+.flick-bubble__cell--right{ grid-column:3; grid-row:2; border-radius:4px 10px 10px 4px; }
+.flick-bubble__cell--active{
+  background: var(--accent) !important;
+  color: #211505 !important;
+  font-weight:700;
+  transform: scale(1.08);
+}
+.flick-bubble__cell:empty{ opacity: .28; }
+
+/* ==========================================================================
+   長押しアクセントポップアップ
+   ========================================================================== */
+.accent-popup{
+  position:fixed;
+  display:flex; gap:4px;
+  background: var(--panel-bg);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 6px;
+  z-index: 60;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.5);
+}
+.accent-popup__opt{
+  width:34px; height:38px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:8px;
+  font-size:16px;
+  background: var(--key-face);
+  color: var(--text-primary);
+}
+.accent-popup__opt.is-active{ background: var(--accent); color:#211505; }
+
+/* ==========================================================================
+   シート（記号パネル・設定パネル）
+   ========================================================================== */
+.sheet{
+  position:absolute;
+  left:0; right:0; bottom:0;
+  background: var(--panel-bg);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  padding: 14px 18px 22px;
+  z-index: 50;
+  box-shadow: 0 -14px 30px rgba(0,0,0,0.4);
+}
+.sheet__header{
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:14px; font-weight:600;
+  margin-bottom:12px;
+  color: var(--text-primary);
+}
+.sheet__close{
+  background:none; border:none; color: var(--accent);
+  font-size:13px; cursor:pointer; padding:4px;
+}
+.sheet__grid{
+  display:grid; grid-template-columns: repeat(6, 1fr); gap:8px;
+}
+.sheet__grid button{
+  height:38px; border-radius:9px;
+  background: var(--key-face); border:1px solid var(--key-border);
+  color: var(--text-primary); font-size:16px; cursor:pointer;
+}
+.sheet__grid button:active{ background: var(--key-face-pressed); }
+
+.settings-row{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size:13.5px; color: var(--text-primary);
+}
+.settings-row--col{ flex-direction:column; align-items:stretch; gap:8px; }
+.settings-row input[type="range"]{ width:100%; accent-color: var(--accent); }
+.settings-row input[type="checkbox"]{ width:18px; height:18px; accent-color: var(--accent); }
+
+.sheet__reset{
+  margin-top:14px; width:100%; padding:11px;
+  border-radius:10px; border:1px solid rgba(255,107,107,0.3);
+  background: rgba(255,107,107,0.08); color: var(--danger);
+  font-size:13.5px; cursor:pointer;
+}
+
+@media (max-width: 380px){
+  .key{ height:42px; font-size:15.5px; }
+}

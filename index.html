@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Origami Keyboard — 独自配列キーボード試作機</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="stage">
+    <div class="stage__label">
+      <span class="stage__dot"></span>
+      Origami Keyboard — ブラウザ試作機（マウスでも操作できます）
+    </div>
+
+    <div class="phone" id="phone">
+
+      <!-- 端末ステータス風の飾り -->
+      <div class="notch-bar">
+        <span class="notch-bar__time" id="clock">9:41</span>
+        <span class="notch-bar__icons">●●● 5G 🔋</span>
+      </div>
+
+      <!-- アプリ側ツールバー -->
+      <div class="app-toolbar">
+        <div class="app-toolbar__title">
+          <span class="app-toolbar__logo">折</span>
+          <div>
+            <div class="app-toolbar__name">Origami Keys</div>
+            <div class="app-toolbar__sub" id="modeSubLabel">日本語 ・ フリック配列</div>
+          </div>
+        </div>
+        <button class="icon-btn" id="settingsBtn" aria-label="設定" title="設定">⚙</button>
+      </div>
+
+      <!-- テキスト入力結果の表示 -->
+      <div class="text-display-wrap">
+        <div class="text-display" id="textDisplay" tabindex="0" aria-label="入力内容"></div>
+        <div class="text-display__hint" id="textHint">ここに入力結果が表示されます</div>
+      </div>
+
+      <!-- よく使う文章（ワンタップ入力） -->
+      <div class="phrase-bar" id="phraseBar"></div>
+
+      <!-- キーボード本体 -->
+      <div class="keyboard" id="keyboard">
+        <div class="keyboard__rows" id="kbRows"></div>
+      </div>
+
+      <!-- フリック方向プレビュー（浮遊バブル） -->
+      <div class="flick-bubble" id="flickBubble" hidden>
+        <div class="flick-bubble__cell flick-bubble__cell--up" data-dir="up"></div>
+        <div class="flick-bubble__cell flick-bubble__cell--left" data-dir="left"></div>
+        <div class="flick-bubble__cell flick-bubble__cell--center" data-dir="center"></div>
+        <div class="flick-bubble__cell flick-bubble__cell--right" data-dir="right"></div>
+        <div class="flick-bubble__cell flick-bubble__cell--down" data-dir="down"></div>
+      </div>
+
+      <!-- 長押しアクセントポップアップ（英語モード用） -->
+      <div class="accent-popup" id="accentPopup" hidden></div>
+
+      <!-- 記号パネル（濁点キー・未入力時） -->
+      <div class="sheet" id="symbolSheet" hidden>
+        <div class="sheet__header">
+          <span>記号を選択</span>
+          <button class="sheet__close" id="symbolClose">閉じる</button>
+        </div>
+        <div class="sheet__grid" id="symbolGrid"></div>
+      </div>
+
+      <!-- 設定パネル -->
+      <div class="sheet" id="settingsSheet" hidden>
+        <div class="sheet__header">
+          <span>キーボード設定</span>
+          <button class="sheet__close" id="settingsClose">閉じる</button>
+        </div>
+        <div class="settings-row">
+          <label for="soundToggle">キー操作音</label>
+          <input type="checkbox" id="soundToggle" checked>
+        </div>
+        <div class="settings-row">
+          <label for="hapticToggle">触覚フィードバック</label>
+          <input type="checkbox" id="hapticToggle" checked>
+        </div>
+        <div class="settings-row settings-row--col">
+          <label for="sensitivitySlider">フリック感度（小さいほど敏感）</label>
+          <input type="range" id="sensitivitySlider" min="10" max="40" value="18">
+        </div>
+        <button class="sheet__reset" id="clearTextBtn">入力内容をすべて消去</button>
+      </div>
+
+    </div>
+
+    <p class="stage__footnote">
+      Tap = タップ入力 ／ ドラッグ = フリック入力 ／ 長押し = アクセント・記号候補 ／
+      スペースキーを左右になぞるとカーソル移動
+    </p>
+  </div>
+
+<script src="script.js"></script>
+</body>
+</html>
