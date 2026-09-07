@@ -24,7 +24,7 @@
   --font: -apple-system, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
 }
 
-*{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+*{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
 
 html, body{
   margin:0; padding:0; height:100%;
@@ -150,6 +150,11 @@ html, body{
   border-radius:1px;
 }
 @keyframes blink{ 50%{ opacity:0; } }
+
+.composition{
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 1px;
+}
 
 /* ==========================================================================
    よく使う文章チップ
