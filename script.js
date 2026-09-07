@@ -19,25 +19,26 @@
    ========================================================================== */
 
 // 日本語フリック配列（12キー、独自配列）
+// フリック方向と母音の対応： 中央=あ段／左=い段／上=う段／右=え段／下=お段
 const JA_FLICK_ROWS = [
   [
-    { id:'ka1', kind:'char', center:'あ', up:'い', right:'う', down:'え', left:'お' },
-    { id:'ka2', kind:'char', center:'か', up:'き', right:'く', down:'け', left:'こ' },
-    { id:'ka3', kind:'char', center:'さ', up:'し', right:'す', down:'せ', left:'そ' },
+    { id:'ka1', kind:'char', center:'あ', left:'い', up:'う', right:'え', down:'お' },
+    { id:'ka2', kind:'char', center:'か', left:'き', up:'く', right:'け', down:'こ' },
+    { id:'ka3', kind:'char', center:'さ', left:'し', up:'す', right:'せ', down:'そ' },
   ],
   [
-    { id:'ka4', kind:'char', center:'た', up:'ち', right:'つ', down:'て', left:'と' },
-    { id:'ka5', kind:'char', center:'な', up:'に', right:'ぬ', down:'ね', left:'の' },
-    { id:'ka6', kind:'char', center:'は', up:'ひ', right:'ふ', down:'へ', left:'ほ' },
+    { id:'ka4', kind:'char', center:'た', left:'ち', up:'つ', right:'て', down:'と' },
+    { id:'ka5', kind:'char', center:'な', left:'に', up:'ぬ', right:'ね', down:'の' },
+    { id:'ka6', kind:'char', center:'は', left:'ひ', up:'ふ', right:'へ', down:'ほ' },
   ],
   [
-    { id:'ka7', kind:'char', center:'ま', up:'み', right:'む', down:'め', left:'も' },
-    { id:'ka8', kind:'char', center:'や', up:'ゆ', right:'ょ', down:'よ', left:'ゃ' },
-    { id:'ka9', kind:'char', center:'ら', up:'り', right:'る', down:'れ', left:'ろ' },
+    { id:'ka7', kind:'char', center:'ま', left:'み', up:'む', right:'め', down:'も' },
+    { id:'ka8', kind:'char', center:'や', left:'ゃ', up:'ゆ', right:'ょ', down:'よ' },
+    { id:'ka9', kind:'char', center:'ら', left:'り', up:'る', right:'れ', down:'ろ' },
   ],
   [
     { id:'dakuten', kind:'fn', fn:'dakuten', label:'゛゜小', cls:'key--fn' },
-    { id:'ka0', kind:'char', center:'わ', up:'を', right:'っ', down:'ん', left:'ー' },
+    { id:'ka0', kind:'char', center:'わ', left:'ん', up:'ー', right:'っ', down:'を' },
     { id:'delete', kind:'fn', fn:'delete', label:'⌫', cls:'key--fn key--delete' },
   ],
   [
@@ -232,6 +233,74 @@ const TextModel = {
 
 
 /* ==========================================================================
+   3.5 Composition — かな漢字変換（プリエディット）
+   日本語モードでは、確定前の文字は Composition.buffer に貯め、
+   スペースキーで変換候補を呼び出す（＝本物のIMEの下線付き未確定文字と同じ仕組み）。
+   簡易辞書のみのため変換範囲は限定的だが、変換機能そのものは実装している。
+   ========================================================================== */
+const CONVERSION_DICT = {
+  'きょう':['今日','京'], 'あした':['明日'], 'あさって':['明後日'], 'きのう':['昨日'],
+  'わたし':['私'], 'ぼく':['僕'], 'ありがとう':['有難う','ありがとう'],
+  'おはよう':['おはよう','お早う'], 'こんにちは':['今日は','こんにちは'],
+  'こんばんは':['今晩は','こんばんは'], 'よろしく':['宜しく'], 'おねがいします':['お願いします'],
+  'かいぎ':['会議'], 'しごと':['仕事'], 'がっこう':['学校'], 'せんせい':['先生'],
+  'がくせい':['学生'], 'でんわ':['電話'], 'じかん':['時間'], 'きょうと':['京都'],
+  'とうきょう':['東京'], 'にほん':['日本'], 'げんき':['元気'], 'たべる':['食べる'],
+  'いく':['行く'], 'みる':['見る'], 'てんき':['天気'], 'かんじ':['漢字'],
+  'にゅうりょく':['入力'], 'へんかん':['変換'], 'けいたい':['携帯'], 'かいしゃ':['会社'],
+  'さくせい':['作成'], 'かくにん':['確認'], 'しつもん':['質問'], 'かいとう':['回答'],
+};
+
+function toKatakana(str){
+  return str.replace(/[\u3041-\u3096]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60));
+}
+function getCandidates(buffer){
+  const list = [...(CONVERSION_DICT[buffer] || [])];
+  if(!list.includes(buffer)) list.push(buffer);       // ひらがなのまま
+  const kata = toKatakana(buffer);
+  if(kata !== buffer && !list.includes(kata)) list.push(kata); // カタカナ変換
+  return list;
+}
+
+const Composition = {
+  buffer: '',        // 未確定のかな文字列
+  candidates: null,  // 変換候補（nullのときは変換前の生のかな入力状態）
+  candidateIndex: 0,
+
+  isActive(){ return this.buffer.length > 0; },
+
+  addChar(ch){
+    // すでに候補を選んでいる状態で新しい文字が来たら、一旦確定してから続ける
+    if(this.candidates){ commitComposition(); }
+    this.buffer += ch;
+  },
+  backspace(){
+    if(this.candidates){ this.candidates = null; this.candidateIndex = 0; return; } // 変換を取り消して生入力に戻す
+    this.buffer = this.buffer.slice(0, -1);
+  },
+  cycleCandidate(){
+    if(!this.candidates){
+      this.candidates = getCandidates(this.buffer);
+      this.candidateIndex = 0;
+    } else {
+      this.candidateIndex = (this.candidateIndex + 1) % this.candidates.length;
+    }
+  },
+  currentDisplay(){
+    return this.candidates ? this.candidates[this.candidateIndex] : this.buffer;
+  },
+  reset(){ this.buffer = ''; this.candidates = null; this.candidateIndex = 0; },
+};
+
+// 未確定文字列を確定してTextModelへ書き込む（＝改行キーの「確定」動作の本体）
+function commitComposition(){
+  if(!Composition.isActive()) return;
+  TextModel.insert(Composition.currentDisplay());
+  Composition.reset();
+}
+
+
+/* ==========================================================================
    4. UIRenderer — 画面描画
    ========================================================================== */
 function escapeHtml(str){
@@ -243,8 +312,11 @@ function renderText(){
   const hint = document.getElementById('textHint');
   const before = escapeHtml(TextModel.text.slice(0, TextModel.cursor));
   const after = escapeHtml(TextModel.text.slice(TextModel.cursor));
-  el.innerHTML = before + '<span class="text-cursor"></span>' + after;
-  hint.classList.toggle('is-hidden', TextModel.text.length > 0);
+  const compHtml = Composition.isActive()
+    ? '<span class="composition">' + escapeHtml(Composition.currentDisplay()) + '</span>'
+    : '';
+  el.innerHTML = before + compHtml + '<span class="text-cursor"></span>' + after;
+  hint.classList.toggle('is-hidden', TextModel.text.length > 0 || Composition.isActive());
 }
 
 function updateModeLabel(){
@@ -307,6 +379,7 @@ function renderPhraseBar(){
     chip.className = 'phrase-chip';
     chip.textContent = phrase;
     chip.addEventListener('click', () => {
+      commitComposition();
       TextModel.insert(phrase);
       renderText();
       playFeedback();
@@ -323,6 +396,7 @@ function renderSymbolGrid(){
     b.type = 'button';
     b.textContent = sym;
     b.addEventListener('click', () => {
+      commitComposition();
       TextModel.insert(sym);
       renderText();
       closeSheet('symbolSheet');
@@ -420,6 +494,7 @@ const GestureHandler = {
     const isDelete = keyDef.fn === 'delete';
 
     function onDown(e){
+      e.preventDefault();
       el.setPointerCapture(e.pointerId);
       startX = e.clientX; startY = e.clientY;
       lastDragX = startX;
@@ -505,7 +580,11 @@ const GestureHandler = {
       if(longPressFired) return; // 長押し処理はすでに済んでいる
 
       if(isDelete && currentDir === 'left'){
-        TextModel.deleteToPunctuation();
+        if(state.mode === 'ja' && Composition.isActive()){
+          Composition.reset();
+        } else {
+          TextModel.deleteToPunctuation();
+        }
         renderText();
         playFeedback();
         return;
@@ -534,6 +613,7 @@ const GestureHandler = {
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', onUp);
     el.addEventListener('pointercancel', onCancel);
+    el.addEventListener('contextmenu', e => e.preventDefault());
   },
 };
 
@@ -551,6 +631,12 @@ const KeyHandler = {
       renderKeyboard();
       return;
     }
+    if(state.mode === 'ja'){
+      // 日本語モードでは直接確定せず、変換前のバッファに積む
+      Composition.addChar(ch);
+      renderText();
+      return;
+    }
     TextModel.insert(ch);
     renderText();
   },
@@ -566,15 +652,29 @@ const KeyHandler = {
   handleFunction(fn){
     switch(fn){
       case 'delete':
-        TextModel.deleteBackward();
+        if(state.mode === 'ja' && Composition.isActive()){
+          Composition.backspace();
+        } else {
+          TextModel.deleteBackward();
+        }
         renderText();
         break;
       case 'space':
-        TextModel.insert(' ');
+        if(state.mode === 'ja' && Composition.isActive()){
+          // 変換候補を呼び出す／次の候補へ送る
+          Composition.cycleCandidate();
+        } else {
+          TextModel.insert(' ');
+        }
         renderText();
         break;
       case 'return':
-        TextModel.insert('\n');
+        if(state.mode === 'ja' && Composition.isActive()){
+          // 変換中・入力中の改行キーは「確定」ボタンとして働く
+          commitComposition();
+        } else {
+          TextModel.insert('\n');
+        }
         renderText();
         break;
       case 'shift':
@@ -582,11 +682,15 @@ const KeyHandler = {
         renderKeyboard();
         break;
       case 'globe':
+        if(state.mode === 'ja') commitComposition();
         toggleGlobe();
+        renderText();
         renderKeyboard();
         break;
       case 'numtoggle':
+        if(state.mode === 'ja') commitComposition();
         toggleNum();
+        renderText();
         renderKeyboard();
         break;
       case 'more-symbols':
@@ -594,6 +698,17 @@ const KeyHandler = {
         renderKeyboard();
         break;
       case 'dakuten': {
+        // 変換中／未確定バッファがある場合は、そちらの最後の文字に対して濁点処理を行う
+        if(state.mode === 'ja' && Composition.isActive() && !Composition.candidates){
+          const last = Composition.buffer[Composition.buffer.length - 1];
+          const info = DAKUTEN_LOOKUP[last];
+          if(info){
+            Composition.buffer = Composition.buffer.slice(0, -1) + info.group[(info.index + 1) % info.group.length];
+            renderText();
+            playFeedback();
+          }
+          break;
+        }
         const last = TextModel.lastChar();
         if(!last){ openSymbolSheet(); break; }
         const info = DAKUTEN_LOOKUP[last];
@@ -629,6 +744,7 @@ const App = {
     document.getElementById('sensitivitySlider').addEventListener('input', e => { state.settings.flickThreshold = Number(e.target.value); });
     document.getElementById('clearTextBtn').addEventListener('click', () => {
       TextModel.text = ''; TextModel.cursor = 0;
+      Composition.reset();
       renderText();
       closeSheet('settingsSheet');
     });
