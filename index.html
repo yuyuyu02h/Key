@@ -45,6 +45,14 @@
 
       <!-- キーボード本体 -->
       <div class="keyboard" id="keyboard">
+        <div class="kb-toolbar" id="kbToolbar">
+          <div class="kb-toolbar__cursor" id="kbToolbarCursor">
+            <button type="button" class="toolbar-btn" id="cursorLeftBtn" aria-label="カーソルを左へ">‹</button>
+            <button type="button" class="toolbar-btn" id="cursorRightBtn" aria-label="カーソルを右へ">›</button>
+          </div>
+          <div class="kb-toolbar__candidates" id="kbToolbarCandidates" hidden></div>
+          <button type="button" class="toolbar-mic" id="micBtn" aria-label="音声入力">🎤</button>
+        </div>
         <div class="keyboard__rows" id="kbRows"></div>
       </div>
 

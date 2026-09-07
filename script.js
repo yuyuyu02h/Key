@@ -39,12 +39,13 @@ const JA_FLICK_ROWS = [
   [
     { id:'dakuten', kind:'fn', fn:'dakuten', label:'゛゜小', cls:'key--fn' },
     { id:'ka0', kind:'char', center:'わ', left:'ん', up:'ー', right:'っ', down:'を' },
-    { id:'delete', kind:'fn', fn:'delete', label:'⌫', cls:'key--fn key--delete' },
+    { id:'punct', kind:'char', center:'、', left:'？', up:'。', right:'！', down:'…' },
   ],
   [
     { id:'globe', kind:'fn', fn:'globe', label:'A/#', cls:'key--fn key--globe' },
     { id:'numtoggle', kind:'fn', fn:'numtoggle', label:'123', cls:'key--fn key--num' },
     { id:'space', kind:'fn', fn:'space', label:'空白', cls:'key--fn key--space' },
+    { id:'delete', kind:'fn', fn:'delete', label:'⌫', cls:'key--fn key--delete' },
     { id:'return', kind:'fn', fn:'return', label:'改行', cls:'key--fn key--return' },
   ],
 ];
@@ -264,27 +265,26 @@ function getCandidates(buffer){
 
 const Composition = {
   buffer: '',        // 未確定のかな文字列
-  candidates: null,  // 変換候補（nullのときは変換前の生のかな入力状態）
+  candidates: null,  // 現在のバッファに対する変換候補（予測変換バー用に常に最新化する）
   candidateIndex: 0,
 
   isActive(){ return this.buffer.length > 0; },
 
+  _refreshCandidates(){
+    this.candidates = this.buffer ? getCandidates(this.buffer) : null;
+    this.candidateIndex = 0;
+  },
   addChar(ch){
-    // すでに候補を選んでいる状態で新しい文字が来たら、一旦確定してから続ける
-    if(this.candidates){ commitComposition(); }
     this.buffer += ch;
+    this._refreshCandidates();
   },
   backspace(){
-    if(this.candidates){ this.candidates = null; this.candidateIndex = 0; return; } // 変換を取り消して生入力に戻す
     this.buffer = this.buffer.slice(0, -1);
+    this._refreshCandidates();
   },
   cycleCandidate(){
-    if(!this.candidates){
-      this.candidates = getCandidates(this.buffer);
-      this.candidateIndex = 0;
-    } else {
-      this.candidateIndex = (this.candidateIndex + 1) % this.candidates.length;
-    }
+    if(!this.candidates || this.candidates.length === 0) return;
+    this.candidateIndex = (this.candidateIndex + 1) % this.candidates.length;
   },
   currentDisplay(){
     return this.candidates ? this.candidates[this.candidateIndex] : this.buffer;
@@ -297,6 +297,12 @@ function commitComposition(){
   if(!Composition.isActive()) return;
   TextModel.insert(Composition.currentDisplay());
   Composition.reset();
+}
+// 変換候補バーで特定の候補をタップしたときに、その候補で確定する
+function commitCompositionAt(index){
+  if(!Composition.candidates) return;
+  Composition.candidateIndex = Math.max(0, Math.min(Composition.candidates.length - 1, index));
+  commitComposition();
 }
 
 
@@ -317,6 +323,37 @@ function renderText(){
     : '';
   el.innerHTML = before + compHtml + '<span class="text-cursor"></span>' + after;
   hint.classList.toggle('is-hidden', TextModel.text.length > 0 || Composition.isActive());
+  renderToolbar();
+}
+
+// ツールバー：未入力時はカーソル移動＋音声入力、変換中は候補チップの一覧に切り替える
+function renderToolbar(){
+  const cursorWrap = document.getElementById('kbToolbarCursor');
+  const candWrap = document.getElementById('kbToolbarCandidates');
+  const micBtn = document.getElementById('micBtn');
+
+  if(Composition.isActive() && Composition.candidates){
+    cursorWrap.hidden = true;
+    micBtn.hidden = true;
+    candWrap.hidden = false;
+    candWrap.innerHTML = '';
+    Composition.candidates.forEach((cand, i) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'candidate-chip' + (i === Composition.candidateIndex ? ' is-selected' : '');
+      chip.textContent = cand;
+      chip.addEventListener('click', () => {
+        commitCompositionAt(i);
+        renderText();
+        playFeedback();
+      });
+      candWrap.appendChild(chip);
+    });
+  } else {
+    candWrap.hidden = true;
+    cursorWrap.hidden = false;
+    micBtn.hidden = false;
+  }
 }
 
 function updateModeLabel(){
@@ -344,11 +381,14 @@ function buildKeyElement(keyDef){
   labelSpan.textContent = label;
   btn.appendChild(labelSpan);
 
-  if(keyDef.kind === 'char' && keyDef.up){
-    const sub = document.createElement('span');
-    sub.className = 'key__sub';
-    sub.textContent = keyDef.up;
-    btn.appendChild(sub);
+  if(keyDef.kind === 'char'){
+    ['up','down','left','right'].forEach(dir => {
+      if(!keyDef[dir]) return;
+      const hint = document.createElement('span');
+      hint.className = 'key__hint key__hint--' + dir;
+      hint.textContent = keyDef[dir];
+      btn.appendChild(hint);
+    });
   }
   if(keyDef.fn === 'shift' && state.shift){
     btn.classList.add('is-active');
@@ -409,6 +449,16 @@ function renderSymbolGrid(){
 function openSheet(id){ document.getElementById(id).hidden = false; }
 function closeSheet(id){ document.getElementById(id).hidden = true; }
 function openSymbolSheet(){ renderSymbolGrid(); openSheet('symbolSheet'); }
+
+// ツールバーに短いメッセージを一時的に表示する（音声入力が使えない場合の案内など）
+function showToolbarMessage(msg){
+  const cursorWrap = document.getElementById('kbToolbarCursor');
+  const candWrap = document.getElementById('kbToolbarCandidates');
+  cursorWrap.hidden = true;
+  candWrap.hidden = false;
+  candWrap.innerHTML = '<span class="toolbar-msg">' + escapeHtml(msg) + '</span>';
+  setTimeout(renderToolbar, 2200);
+}
 
 // --- フリック方向プレビュー（浮遊バブル） ---
 function showFlickBubble(keyEl, keyDef){
@@ -699,11 +749,12 @@ const KeyHandler = {
         break;
       case 'dakuten': {
         // 変換中／未確定バッファがある場合は、そちらの最後の文字に対して濁点処理を行う
-        if(state.mode === 'ja' && Composition.isActive() && !Composition.candidates){
+        if(state.mode === 'ja' && Composition.isActive()){
           const last = Composition.buffer[Composition.buffer.length - 1];
           const info = DAKUTEN_LOOKUP[last];
           if(info){
             Composition.buffer = Composition.buffer.slice(0, -1) + info.group[(info.index + 1) % info.group.length];
+            Composition._refreshCandidates();
             renderText();
             playFeedback();
           }
@@ -747,6 +798,52 @@ const App = {
       Composition.reset();
       renderText();
       closeSheet('settingsSheet');
+    });
+    document.getElementById('cursorLeftBtn').addEventListener('click', () => {
+      TextModel.moveCursor(-1); renderText(); playFeedback();
+    });
+    document.getElementById('cursorRightBtn').addEventListener('click', () => {
+      TextModel.moveCursor(1); renderText(); playFeedback();
+    });
+    this.bindMic();
+  },
+
+  // 音声入力：Web Speech APIが使える環境ではそのまま動作し、無い場合は
+  // その旨をツールバーに一時表示する（Swift版ではSFSpeechRecognizerに置き換える想定）
+  bindMic(){
+    const micBtn = document.getElementById('micBtn');
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognizer = null;
+    let listening = false;
+
+    micBtn.addEventListener('click', () => {
+      if(!SR){
+        showToolbarMessage('この環境では音声入力を利用できません');
+        return;
+      }
+      if(listening){ recognizer && recognizer.stop(); return; }
+
+      recognizer = new SR();
+      recognizer.lang = (state.mode === 'en' || state.mode === 'en-num') ? 'en-US' : 'ja-JP';
+      recognizer.interimResults = false;
+      recognizer.maxAlternatives = 1;
+
+      recognizer.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        commitComposition();
+        TextModel.insert(text);
+        renderText();
+      };
+      recognizer.onerror = () => { listening = false; micBtn.classList.remove('is-listening'); };
+      recognizer.onend = () => { listening = false; micBtn.classList.remove('is-listening'); };
+
+      try{
+        recognizer.start();
+        listening = true;
+        micBtn.classList.add('is-listening');
+      }catch(err){
+        showToolbarMessage('音声入力を開始できませんでした');
+      }
     });
   },
   tickClock(){
